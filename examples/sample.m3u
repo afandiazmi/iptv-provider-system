@@ -1,0 +1,36 @@
+#EXTM3U name="Sample TV" url-tvg="https://guide.example.com/epg.xml.gz"
+
+#EXTINF:-1 tvg-id="test.mux" tvg-logo="https://placehold.co/64x64/6d5bf6/fff?text=MUX" group-title="Test streams",Mux test stream
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+#EXTINF:-1 tvg-id="test.mux.low" group-title="Test streams",Mux test stream (low)
+https://test-streams.mux.dev/x36xhzz/url_0/193039199_mp4_h264_aac_hd_7.m3u8
+
+#EXTINF:-1 tvg-id="example.news.1" tvg-chno="101" group-title="News",Example News HD
+https://cdn.example.com/live/news/index.m3u8
+#EXTINF:-1 tvg-id="example.news.1" tvg-shift="-1" tvg-chno="102" group-title="News",Example News +1
+https://cdn.example.com/live/news-plus1/index.m3u8
+
+#EXTVLCOPT:http-user-agent=ExampleApp/2.1
+#EXTVLCOPT:http-referrer=https://portal.example.net/
+#EXTINF:-1 tvg-id="example.sport.1" group-title="Sport",Example Sport 1
+https://cdn.example.net/live/sport1/index.m3u8
+#EXTHTTP:{"User-Agent":"ExampleApp/2.1","Referer":"https://portal.example.net/"}
+#EXTINF:-1 tvg-id="example.sport.3" group-title="Sport",Example Sport 3
+https://cdn.example.net/live/sport3/index.m3u8
+
+#EXTGRP:Documentaries
+#EXTINF:-1 tvg-id="example.docs.1",Example Explorer
+https://cdn.example.com/live/explorer/index.m3u8
+
+#KODIPROP:inputstream.adaptive.manifest_type=dash
+#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_key=00112233445566778899aabbccddeeff:ffeeddccbbaa99887766554433221100
+#EXTINF:-1 tvg-id="example.movies.1" group-title="Movies",Example Movies
+https://cdn.example.com/live/movies/manifest.mpd
+
+#EXTINF:-1 type="movie" tvg-logo="https://img.example.com/poster.jpg" group-title="Films",The Long Afternoon (2021)
+https://files.example.com/movie/the-long-afternoon.mp4
+#EXTINF:-1 type="series" tvg-serie="hl-2019" serie-title="Harbour Lights" tvg-season="1" tvg-episode="1" group-title="Series",Harbour Lights S01E01
+https://files.example.com/series/harbour-lights-s01e01.mkv
+#EXTINF:-1 type="series" tvg-serie="hl-2019" serie-title="Harbour Lights" tvg-season="1" tvg-episode="2" group-title="Series",Harbour Lights S01E02
+https://files.example.com/series/harbour-lights-s01e02.mkv

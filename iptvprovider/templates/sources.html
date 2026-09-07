@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, when with context %}
+{% block title %}Sources{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Sources</h1><p>Each source is one upstream playlist. Its channels are replaced whenever it is refreshed or re-uploaded; your edits and deletions are kept and re-applied.</p></div>
+</div>
+
+<div class="card" style="margin-bottom:16px" data-tabs>
+  <div class="card__head"><h2>Add a source</h2>
+    <div class="tabs"><button type="button" class="tab is-on" data-tab="url">From a URL</button><button type="button" class="tab" data-tab="upload">Upload files</button></div>
+  </div>
+
+  <form method="post" action="{{ url_for('sources_add') }}" data-panel="url">
+    {{ csrf() }}<input type="hidden" name="kind" value="url">
+    <div class="form-grid">
+      <label class="field span-2">Playlist URL<input type="text" name="url" required placeholder="https://provider.example.com/get.php?username=…&type=m3u_plus"><span class="hint">Adding a URL that already exists replaces that source instead of duplicating it.</span></label>
+      <label class="field">Name <em>optional</em><input type="text" name="name" placeholder="Named after the domain if blank"></label>
+      <label class="field">Auto-refresh
+        <select name="auto_refresh_hours">
+          <option value="0">Off - refresh by hand</option>
+          <option value="1">Every hour</option><option value="3">Every 3 hours</option><option value="6">Every 6 hours</option>
+          <option value="12">Every 12 hours</option><option value="24" selected>Every 24 hours</option><option value="48">Every 2 days</option><option value="168">Every week</option>
+        </select>
+      </label>
+    </div>
+    <details class="adv"><summary>Advanced: User-Agent for the fetch</summary>
+      <label class="field">User-Agent <em>only if the provider requires one</em><input type="text" name="user_agent" placeholder="{{ settings.default_user_agent or 'Leave blank for the default' }}"></label>
+    </details>
+    <div class="row" style="margin-top:10px"><button class="btn btn--primary" type="submit">Fetch and add</button></div>
+  </form>
+
+  <form method="post" action="{{ url_for('sources_add') }}" enctype="multipart/form-data" data-panel="upload" class="hidden">
+    {{ csrf() }}<input type="hidden" name="kind" value="upload">
+    <div class="form-grid">
+      <label class="field span-2">M3U file(s)<input type="file" name="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl,application/vnd.apple.mpegurl,text/plain" multiple required><span class="hint">Several files at once become several sources, each named after its file.</span></label>
+      <label class="field">Name <em>optional, single file</em><input type="text" name="name"></label>
+      <label class="field">Replace an existing source <em>optional</em>
+        <select name="replace_source_id"><option value="">No - create a new source</option>{% for s in sources %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select>
+      </label>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn btn--primary" type="submit">Upload</button></div>
+  </form>
+</div>
+
+<div data-bulk="{{ url_for('sources_bulk') }}" data-total="{{ sources|length }}">
+  <div class="bulkbar">
+    <strong data-count>0 selected</strong>
+    <button type="button" class="btn btn--sm" data-action="refresh">Refresh selected</button>
+    <button type="button" class="btn btn--sm" data-action="disable">Disable</button>
+    <button type="button" class="btn btn--sm" data-action="enable">Enable</button>
+    <button type="button" class="btn btn--sm btn--danger" data-action="delete" data-confirm="Delete {n} source(s) and every channel in them? Subscribers lose those channels at once.">Delete selected</button>
+    <a href="#" class="small hidden" data-clear>Clear</a>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr>
+      <th class="check-col"><input type="checkbox" data-check-all aria-label="Select all"></th>
+      <th>Source</th><th>Type</th><th>Channels</th><th>Groups</th><th>Auto-refresh</th><th>Last fetched</th><th>Status</th><th class="right">Actions</th>
+    </tr></thead>
+    <tbody>
+    {% for s in sources %}
+    <tr>
+      <td>{% if s.kind != 'manual' %}<input type="checkbox" class="row-check" value="{{ s.id }}">{% endif %}</td>
+      <td>
+        <a href="{{ url_for('channels_page', source=s.id) }}"><strong>{{ s.name }}</strong></a>{% if not s.enabled %} <span class="pill pill--dim">disabled</span>{% endif %}
+        {% if s.kind == 'url' %}<div class="small dim truncate truncate-wide" title="{{ s.url }}">{{ s.url }}</div>{% endif %}
+      </td>
+      <td class="small">{{ {'url': 'URL', 'upload': 'Upload', 'manual': 'Manual'}[s.kind] }}</td>
+      <td>{{ s.channel_count - s.hidden_count }}{% if s.hidden_count %} <span class="dim small" title="Hidden channels stay hidden after a refresh">+{{ s.hidden_count }} hidden</span>{% endif %}</td>
+      <td class="small">{{ group_counts.get(s.id, 0) }}</td>
+      <td class="small">{% if s.kind == 'url' %}{{ 'every %g h' % s.auto_refresh_hours if s.auto_refresh_hours else 'off' }}{% else %}<span class="dim">–</span>{% endif %}</td>
+      <td class="small">{{ when(s.last_fetched_at, 'ago') }}{% if s.last_bytes %} <span class="dim">· {% if s.last_bytes >= 1048576 %}{{ '%.1f' % (s.last_bytes / 1048576) }} MB{% else %}{{ (s.last_bytes / 1024)|round|int }} KB{% endif %}</span>{% endif %}</td>
+      <td>{% if s.last_error %}<span class="pill pill--bad" title="{{ s.last_error }}">failed</span><div class="small muted" style="max-width:24ch">{{ s.last_error }}</div>{% elif s.last_success_at %}<span class="pill pill--ok">ok</span>{% else %}<span class="pill">empty</span>{% endif %}</td>
+      <td><div class="actions">
+        <a class="btn btn--sm" href="{{ url_for('channels_page', source=s.id) }}">Channels</a>
+        {% if s.kind == 'url' %}<form method="post" action="{{ url_for('sources_refresh', source_id=s.id) }}" class="inline">{{ csrf() }}<button class="btn btn--sm btn--aqua" type="submit">Refresh</button></form>{% endif %}
+        <button type="button" class="btn btn--sm" data-open="edit-{{ s.id }}">Edit</button>
+      </div></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+{% for s in sources %}
+<div class="modal" id="edit-{{ s.id }}">
+  <div class="modal__panel">
+    <div class="modal__head"><h2>{{ s.name }}</h2><button type="button" class="btn btn--sm" data-close>Close</button></div>
+    <form method="post" action="{{ url_for('sources_update', source_id=s.id) }}" class="stack">
+      {{ csrf() }}
+      <div class="form-grid">
+        <label class="field span-2">Name<input type="text" name="name" value="{{ s.name }}" required></label>
+        {% if s.kind == 'url' %}
+        <label class="field span-all">URL<input type="text" name="url" value="{{ s.url }}"></label>
+        <label class="field">Auto-refresh
+          <select name="auto_refresh_hours">
+            {% for value, label in [(0, 'Off'), (1, 'Every hour'), (3, 'Every 3 hours'), (6, 'Every 6 hours'), (12, 'Every 12 hours'), (24, 'Every 24 hours'), (48, 'Every 2 days'), (168, 'Every week')] %}
+            <option value="{{ value }}" {{ 'selected' if s.auto_refresh_hours == value }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">User-Agent <em>optional</em><input type="text" name="user_agent" value="{{ s.user_agent }}"></label>
+        {% endif %}
+        {% if s.kind != 'manual' %}
+        <label class="field"><span>Included in playlists</span><select name="enabled"><option value="1" {{ 'selected' if s.enabled }}>Yes</option><option value="0" {{ 'selected' if not s.enabled }}>No - keep but hide from subscribers</option></select></label>
+        {% endif %}
+      </div>
+      <div class="row"><button class="btn btn--primary" type="submit">Save</button></div>
+    </form>
+    <div class="divider"></div>
+    <h3>Replace the content with a file</h3>
+    <p class="small muted">Every channel of this source is replaced by the file. Your edits and deletions are re-applied where the channel still exists.</p>
+    <form method="post" action="{{ url_for('sources_replace', source_id=s.id) }}" enctype="multipart/form-data" class="row">
+      {{ csrf() }}<input type="file" name="file" accept=".m3u,.m3u8,.txt" required><button class="btn" type="submit">Upload and replace</button>
+    </form>
+    {% if s.kind != 'manual' %}
+    <div class="divider"></div>
+    <div class="row row--between">
+      <div class="row">
+        <a class="btn btn--sm" href="{{ url_for('sources_download', source_id=s.id) }}">Download last copy</a>
+        <form method="post" action="{{ url_for('sources_reset', source_id=s.id) }}" class="inline" data-confirm="Forget every edit and deletion made to channels of this source, and rebuild it from the last fetched copy?">{{ csrf() }}<button class="btn btn--sm" type="submit">Reset my edits</button></form>
+      </div>
+      <form method="post" action="{{ url_for('sources_delete', source_id=s.id) }}" class="inline" data-confirm="Delete this source and every channel in it? Subscribers lose those channels at once.">{{ csrf() }}<button class="btn btn--sm btn--danger" type="submit">Delete source</button></form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

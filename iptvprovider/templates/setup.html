@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Set up{% endblock %}
+{% block content %}
+<div class="login">
+  <p class="eyebrow">IPTV Provider System</p>
+  <h1>Create the admin account</h1>
+  <p class="muted">This runs once. Everything else is changed from Settings later.</p>
+  <form method="post" class="card stack" autocomplete="off">
+    {% if error %}<div class="callout callout--bad"><span class="callout__dot"></span><span>{{ error }}</span></div>{% endif %}
+    <label class="field">Provider name <em>shown to subscribers</em><input type="text" name="provider_name" placeholder="My IPTV" value="{{ request.form.provider_name or '' }}"></label>
+    <label class="field">Username<input type="text" name="username" required minlength="3" value="{{ request.form.username or '' }}"></label>
+    <label class="field">Password <em>8+ characters</em><input type="password" name="password" required minlength="8"></label>
+    <label class="field">Password again<input type="password" name="confirm" required minlength="8"></label>
+    <label class="field">Public address of this panel <em>must be https for the app</em>
+      <input type="text" name="public_base_url" placeholder="https://panel.example.com" value="{{ request.form.public_base_url or guessed_base }}">
+      <span class="hint">Playlist links and the authorisation endpoint are built from this. You can change it in Settings.</span>
+    </label>
+    <button class="btn btn--primary" type="submit">Create and sign in</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% macro paginate(p) -%}
+{% if p.total > 0 %}
+<div class="pager">
+  <div class="pager__where">Showing {{ p.start }}–{{ p.end }} of {{ p.total }}</div>
+  <div class="pager__pages">
+    {% if p.has_prev %}<a href="{{ qs(page=p.page - 1) }}">&lsaquo;</a>{% endif %}
+    {% for number in p.window() %}
+      {% if number is none %}<span class="gap">…</span>
+      {% elif number == p.page %}<span class="is-current">{{ number }}</span>
+      {% else %}<a href="{{ qs(page=number) }}">{{ number }}</a>{% endif %}
+    {% endfor %}
+    {% if p.has_next %}<a href="{{ qs(page=p.page + 1) }}">&rsaquo;</a>{% endif %}
+  </div>
+  <form method="get" class="row">
+    {% for key, value in request.args.items() if key not in ('per', 'page') %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+    <label class="field small">Per page
+      <select name="per" onchange="this.form.submit()">
+        {% for n in (25, 50, 100, 200, 500) %}<option value="{{ n }}" {{ 'selected' if p.per_page == n }}>{{ n }}</option>{% endfor %}
+      </select>
+    </label>
+  </form>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro csrf() -%}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{%- endmacro %}
+
+{% macro state_pill(st) -%}<span class="pill pill--{{ st.tone }}">{{ st.label }}</span>{%- endmacro %}
+
+{% macro when(value, mode='datetime') -%}
+{% if not value %}<span class="dim">–</span>{% elif mode == 'date' %}<time datetime="{{ value }}">{{ value[:10] }}</time>{% else %}<time data-utc="{{ value }}" data-mode="{{ mode }}">{{ value[:16].replace('T', ' ') }}</time>{% endif %}
+{%- endmacro %}

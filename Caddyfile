@@ -1,0 +1,12 @@
+# Put the panel behind HTTPS with Caddy (https://caddyserver.com/).
+#
+#   1. Point panel.example.com at this machine (an A/AAAA record).
+#   2. Replace the hostname below and run:  caddy run
+#   3. In the panel, Settings -> Public address: https://panel.example.com
+#
+# Caddy fetches and renews the certificate by itself. The app refuses to
+# honour an #UNLOOP-AUTH line over plain http, so this step is required.
+
+panel.example.com {
+    reverse_proxy 127.0.0.1:8302
+}

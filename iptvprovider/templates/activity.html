@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_macros.html" import paginate, when with context %}
+{% block title %}Activity{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Activity</h1><p>Every call the app made to <code>/unloop</code>, newest first. The last {{ config_keep }} rows are kept.</p></div>
+</div>
+<form method="get" class="filters">
+  <label class="field grow">Search<input type="search" name="q" value="{{ search }}" placeholder="Subscriber, device id, token or IP"></label>
+  <label class="field">Answer
+    <select name="state" onchange="this.form.submit()">
+      {% for value, label in [('', 'All'), ('ok', 'ok'), ('warn', 'warn'), ('block', 'block'), ('expired', 'expired')] %}<option value="{{ value }}" {{ 'selected' if state == value }}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <button class="btn" type="submit">Filter</button>
+  {% if search or state %}<a class="btn btn--ghost" href="{{ url_for('activity_page') }}">Clear</a>{% endif %}
+</form>
+<div class="tablewrap"><table>
+  <thead><tr><th>When</th><th>Subscriber</th><th>Device</th><th>Session</th><th>Reason</th><th>Answer</th><th>Detail</th><th>App</th><th>IP</th></tr></thead>
+  <tbody>
+  {% for a in rows %}
+  <tr>
+    <td class="small nowrap">{{ when(a.at) }}</td>
+    <td>{% if a.subscriber_id %}<a href="{{ url_for('subscriber_page', subscriber_id=a.subscriber_id) }}">{{ a.subscriber_name or '(deleted)' }}</a>{% else %}<span class="dim">unknown token</span> <span class="mono small dim">{{ a.token[:12] }}{% if a.token|length > 12 %}…{% endif %}</span>{% endif %}</td>
+    <td class="mono small">{{ a.device_id or '–' }}</td>
+    <td class="mono small dim">{{ a.session_id[:8] }}</td>
+    <td class="small">{{ a.reason }}</td>
+    <td><span class="pill pill--{{ 'ok' if a.state == 'ok' else 'warn' if a.state == 'warn' else 'bad' }}">{{ a.state }}</span></td>
+    <td class="small muted">{{ a.detail }}</td>
+    <td class="small dim">{{ a.app_version }} {{ a.os }}</td>
+    <td class="small dim">{{ a.ip }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="9" class="center muted" style="padding:30px">No checks recorded yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{{ paginate(pager) }}
+{% endblock %}

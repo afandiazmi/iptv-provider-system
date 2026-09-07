@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="login">
+  <p class="eyebrow">{{ settings.provider_name or 'IPTV Provider' }}</p>
+  <h1>Sign in</h1>
+  <form method="post" class="card stack" style="margin-top:14px">
+    {% if error %}<div class="callout callout--bad"><span class="callout__dot"></span><span>{{ error }}</span></div>{% endif %}
+    <label class="field">Username<input type="text" name="username" required autofocus autocomplete="username"></label>
+    <label class="field">Password<input type="password" name="password" required autocomplete="current-password"></label>
+    <button class="btn btn--primary" type="submit">Sign in</button>
+  </form>
+</div>
+{% endblock %}

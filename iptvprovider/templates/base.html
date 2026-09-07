@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf" content="{{ csrf_token() }}">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}Provider panel{% endblock %} - {{ settings.provider_name or 'IPTV Provider' }}</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+{% if admin %}
+<nav class="nav">
+  <div class="nav__inner">
+    <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand__dot"></span>{{ settings.provider_name or 'IPTV Provider' }}</a>
+    {% set here = request.endpoint or '' %}
+    <a class="nav__link {{ 'is-active' if here == 'dashboard' }}" href="{{ url_for('dashboard') }}">Dashboard</a>
+    <a class="nav__link {{ 'is-active' if here.startswith('sources') }}" href="{{ url_for('sources_page') }}">Sources</a>
+    <a class="nav__link {{ 'is-active' if here.startswith('channel') }}" href="{{ url_for('channels_page') }}">Channels</a>
+    <a class="nav__link {{ 'is-active' if here.startswith('packages') }}" href="{{ url_for('packages_page') }}">Packages</a>
+    <a class="nav__link {{ 'is-active' if here.startswith('subscriber') }}" href="{{ url_for('subscribers_page') }}">Subscribers</a>
+    <a class="nav__link {{ 'is-active' if here.startswith('activity') }}" href="{{ url_for('activity_page') }}">Activity</a>
+    <a class="nav__link {{ 'is-active' if here.startswith('settings') }}" href="{{ url_for('settings_page') }}">Settings</a>
+    <span class="nav__spacer"></span>
+    <span class="dim small">{{ admin.username }}</span>
+    <form method="post" action="{{ url_for('logout') }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn btn--sm btn--ghost" type="submit">Sign out</button></form>
+  </div>
+</nav>
+{% endif %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flashes">
+    {% for category, message in messages %}<div class="flash {{ 'flash--error' if category == 'error' }}">{{ message }}</div>{% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+<main class="wrap">
+{% block content %}{% endblock %}
+</main>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

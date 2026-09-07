@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, state_pill, when with context %}
+{% block title %}{{ s.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="{{ url_for('subscribers_page') }}">Subscribers</a> / #{{ s.id }}</p>
+    <h1>{{ s.name }} {{ state_pill(state) }}</h1>
+    <p>{{ state.reason }}{% if state.message %} · The screen says: <em>“{{ state.message }}”</em>{% endif %}</p>
+  </div>
+  <div class="row">
+    <form method="post" action="{{ url_for('subscriber_extend', subscriber_id=s.id) }}" class="inline">{{ csrf() }}<input type="hidden" name="days" value="30"><button class="btn" type="submit">+30 days</button></form>
+    {% if s.status == 'blocked' %}
+    <form method="post" action="{{ url_for('subscriber_status', subscriber_id=s.id) }}" class="inline">{{ csrf() }}<input type="hidden" name="status" value="active"><button class="btn btn--aqua" type="submit">Unblock</button></form>
+    {% else %}
+    <button type="button" class="btn btn--danger" data-open="block-modal">Block</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid grid--2">
+  <div class="stack">
+    <div class="card">
+      <h2>Playlist link</h2>
+      <p class="small muted">Send this to the customer. They paste it into IPTV Room (or any player). The token in it is their identity - a new link signs every device out.</p>
+      <div class="copy"><input type="text" id="playlist-url" value="{{ playlist_url }}" readonly><button type="button" class="btn btn--sm" data-copy="#playlist-url">Copy</button></div>
+      {% if not base_url().startswith('https://') %}<div class="callout callout--warn" style="margin-top:10px"><span class="callout__dot"></span><span>This link is not https. The app will play it, but it ignores the authorisation line - no expiry, no device limit - until the panel is behind https.</span></div>{% endif %}
+      <div class="divider"></div>
+      <h3>Self-service page</h3>
+      <p class="small muted">Shown as a QR code on the television when the device limit is hit, so the customer can remove an old device themselves.</p>
+      <div class="copy"><input type="text" id="self-url" value="{{ self_url }}" readonly><button type="button" class="btn btn--sm" data-copy="#self-url">Copy</button><a class="btn btn--sm" href="{{ self_url }}" target="_blank" rel="noopener">Open</a></div>
+    </div>
+
+    <div class="card">
+      <h2>Subscription</h2>
+      <form method="post" action="{{ url_for('subscriber_update', subscriber_id=s.id) }}" class="stack">
+        {{ csrf() }}
+        <div class="form-grid">
+          <label class="field span-2">Name<input type="text" name="name" value="{{ s.name }}" required></label>
+          <label class="field">Contact<input type="text" name="contact" value="{{ s.contact }}"></label>
+          <label class="field">Expires on <em>blank = never</em><input type="date" name="expires_at" value="{{ expires_date }}"></label>
+          <label class="field">Devices allowed<input type="number" name="max_devices" min="1" max="100" value="{{ s.max_devices }}"></label>
+          <label class="field">Package<select name="package_id"><option value="">All sources</option>{% for p in packages %}<option value="{{ p.id }}" {{ 'selected' if s.package_id == p.id }}>{{ p.name }}</option>{% endfor %}</select></label>
+          <label class="field span-2">Note <em>only you see it</em><input type="text" name="note" value="{{ s.note }}"></label>
+          <label class="field span-all">QR link override <em>optional https URL shown on refusal screens instead of the default</em><input type="text" name="action_url" value="{{ s.action_url }}" placeholder="https://wa.me/60123456789?text=Renew"></label>
+        </div>
+        <div class="row row--between">
+          <div class="row">
+            {% for d in (7, 30, 90, 365) %}<button class="btn btn--sm" type="submit" formaction="{{ url_for('subscriber_extend', subscriber_id=s.id) }}" name="days" value="{{ d }}">+{{ d }} d</button>{% endfor %}
+            <button class="btn btn--sm" type="submit" formaction="{{ url_for('subscriber_never', subscriber_id=s.id) }}">Never expires</button>
+          </div>
+          <button class="btn btn--primary" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>What the screen shows</h2>
+      <p class="small muted">The four states the app understands. Expiry is automatic; these two are yours to set.</p>
+      <form method="post" action="{{ url_for('subscriber_status', subscriber_id=s.id) }}" class="stack">
+        {{ csrf() }}
+        <label class="row" style="font-weight:400"><input type="radio" name="status" value="active" {{ 'checked' if s.status == 'active' }}> <span><strong>Active</strong> <span class="muted small">- plays normally (<code>ok</code>, or <code>warn</code> automatically in the last {{ settings.warn_days }} days)</span></span></label>
+        <label class="row" style="font-weight:400"><input type="radio" name="status" value="warned" {{ 'checked' if s.status == 'warned' }}> <span><strong>Warning</strong> <span class="muted small">- plays, with your message in a bar the viewer can dismiss (<code>warn</code>)</span></span></label>
+        <label class="row" style="font-weight:400"><input type="radio" name="status" value="blocked" {{ 'checked' if s.status == 'blocked' }}> <span><strong>Blocked</strong> <span class="muted small">- playback stops within the polling interval; your message and a QR code fill the screen (<code>block</code>)</span></span></label>
+        <label class="field">Message <em>plain text, up to 600 characters; blank uses the default from Settings</em><textarea name="message" rows="2" maxlength="600">{{ s.message }}</textarea></label>
+        <div class="row row--end"><button class="btn btn--primary" type="submit">Apply</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <div class="card__head"><h2>Devices <span class="badge-count">{{ devices|length }} / {{ s.max_devices }}</span></h2></div>
+      <p class="small muted">The first {{ s.max_devices }} devices to open the playlist keep their slots. Remove one to let a new device in.</p>
+      {% if devices %}
+      <div class="tablewrap"><table>
+        <thead><tr><th>Slot</th><th>Device</th><th>App</th><th>First seen</th><th>Last seen</th><th></th></tr></thead>
+        <tbody>
+        {% for d in devices %}
+        <tr>
+          <td>{{ d.slot }}</td>
+          <td><span class="mono small">{{ d.device_id }}</span>{% if not d.stable %} <span class="pill pill--warn" title="The platform gave no durable identifier; a reinstall will look like a new device">unstable id</span>{% endif %}<div class="small dim">{{ d.os }}</div></td>
+          <td class="small">{{ d.app_version or '–' }}</td>
+          <td class="small">{{ when(d.first_seen_at, 'ago') }}</td>
+          <td class="small">{{ when(d.last_seen_at, 'ago') }}</td>
+          <td class="right"><form method="post" action="{{ url_for('subscriber_device_remove', subscriber_id=s.id) }}" class="inline" data-confirm="Remove this device? It can sign in again if a slot is free.">{{ csrf() }}<input type="hidden" name="device_id" value="{{ d.device_id }}"><button class="btn btn--sm btn--danger" type="submit">Remove</button></form></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}<p class="muted small">No device has opened this playlist yet.</p>{% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card__head"><h2>Test the answer</h2><button type="button" class="btn btn--sm btn--aqua" data-post="{{ url_for('subscriber_test', subscriber_id=s.id) }}" data-show-json="#test-json">Ask /unloop as the app would</button></div>
+      <p class="small muted">Sends the same JSON the IPTV Room app sends (with a test device id) and shows the reply. The test device takes a slot like a real one; remove it above afterwards if you need the slot.</p>
+      <div class="hidden"><pre><code id="test-json"></code></pre></div>
+    </div>
+
+    <div class="card">
+      <div class="card__head"><h2>Recent checks</h2><a class="small" href="{{ url_for('activity_page', q=s.name) }}">All</a></div>
+      {% if activity %}
+      <div class="tablewrap"><table>
+        <thead><tr><th>When</th><th>Device</th><th>Reason</th><th>Answer</th><th>Detail</th></tr></thead>
+        <tbody>
+        {% for a in activity %}
+        <tr><td class="small nowrap">{{ when(a.at, 'ago') }}</td><td class="mono small">{{ a.device_id or '–' }}</td><td class="small">{{ a.reason }}</td><td><span class="pill pill--{{ 'ok' if a.state == 'ok' else 'warn' if a.state == 'warn' else 'bad' }}">{{ a.state }}</span></td><td class="small muted">{{ a.detail }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}<p class="muted small">Nothing yet.</p>{% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Danger zone</h2>
+      <div class="row" style="margin-top:8px">
+        <form method="post" action="{{ url_for('subscriber_token', subscriber_id=s.id) }}" class="inline" data-confirm="Generate a new playlist link? The old link stops working immediately and every device is signed out.">{{ csrf() }}<button class="btn" type="submit">New playlist link</button></form>
+        <form method="post" action="{{ url_for('subscriber_delete', subscriber_id=s.id) }}" class="inline" data-confirm="Delete {{ s.name }}? The playlist link stops working immediately.">{{ csrf() }}<button class="btn btn--danger" type="submit">Delete subscriber</button></form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="block-modal">
+  <div class="modal__panel">
+    <div class="modal__head"><h2>Block {{ s.name }}</h2><button type="button" class="btn btn--sm" data-close>Close</button></div>
+    <form method="post" action="{{ url_for('subscriber_status', subscriber_id=s.id) }}" class="stack">
+      {{ csrf() }}<input type="hidden" name="status" value="blocked">
+      <label class="field">Message shown on the television<textarea name="message" rows="3" maxlength="600">{{ s.message or settings.msg_blocked }}</textarea></label>
+      <div class="row row--end"><button class="btn btn--danger" type="submit">Block now</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

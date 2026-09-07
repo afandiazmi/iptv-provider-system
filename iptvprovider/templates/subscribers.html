@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, paginate, state_pill, when with context %}
+{% block title %}Subscribers{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Subscribers</h1><p>One subscriber is one customer: one playlist link, up to N devices. No sign-up exists - you add them here and send them the link.</p></div>
+</div>
+
+<div class="grid grid--4" style="margin-bottom:14px">
+  <a class="stat stat--aqua" href="{{ url_for('subscribers_page', state='active') }}"><div class="stat__value">{{ stats.active }}</div><div class="stat__label">Active</div></a>
+  <a class="stat stat--amber" href="{{ url_for('subscribers_page', state='expiring') }}"><div class="stat__value">{{ stats.expiring }}</div><div class="stat__label">Expiring soon</div></a>
+  <a class="stat stat--red" href="{{ url_for('subscribers_page', state='expired') }}"><div class="stat__value">{{ stats.expired }}</div><div class="stat__label">Expired</div></a>
+  <a class="stat" href="{{ url_for('subscribers_page', state='blocked') }}"><div class="stat__value">{{ stats.blocked }}</div><div class="stat__label">Blocked</div></a>
+</div>
+
+<div class="card" id="add" style="margin-bottom:16px">
+  <div class="card__head"><h2>Add a subscriber</h2><span class="small muted">A playlist link is generated the moment you save.</span></div>
+  <form method="post" action="{{ url_for('subscribers_add') }}">
+    {{ csrf() }}
+    <div class="form-grid">
+      <label class="field span-2">Name<input type="text" name="name" required placeholder="Customer name or ID" autofocus></label>
+      <label class="field">Contact <em>optional</em><input type="text" name="contact" placeholder="Phone, email, Telegram…"></label>
+      <label class="field">Duration
+        <select name="days" data-days-select="#custom-days">
+          {% for d, label in [(30, '30 days'), (90, '90 days'), (180, '180 days'), (365, '1 year'), (0, 'Never expires'), ('custom', 'Pick a date…')] %}
+          <option value="{{ d }}" {{ 'selected' if d == settings.default_days }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field hidden" id="custom-days">Expires on<input type="date" name="expires_at"></label>
+      <label class="field">Devices allowed<input type="number" name="max_devices" min="1" max="100" value="{{ settings.default_max_devices }}"></label>
+      <label class="field">Package
+        <select name="package_id"><option value="">All sources</option>{% for p in packages %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
+      </label>
+      <label class="field span-2">Note <em>optional, only you see it</em><input type="text" name="note" placeholder="Paid via …, referred by …"></label>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn btn--primary" type="submit">Add subscriber</button></div>
+  </form>
+</div>
+
+<form method="get" class="filters">
+  <label class="field grow">Search<input type="search" name="q" value="{{ search }}" placeholder="Name, note, contact or token"></label>
+  <label class="field">State
+    <select name="state" onchange="this.form.submit()">
+      {% for value, label in [('', 'All'), ('active', 'Active'), ('expiring', 'Expiring soon'), ('expired', 'Expired'), ('blocked', 'Blocked')] %}
+      <option value="{{ value }}" {{ 'selected' if state == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="btn" type="submit">Filter</button>
+  {% if search or state %}<a class="btn btn--ghost" href="{{ url_for('subscribers_page') }}">Clear</a>{% endif %}
+</form>
+
+<div data-bulk="{{ url_for('subscribers_bulk') }}" data-total="{{ pager.total }}" data-filter='{{ {"q": search, "state": state}|tojson }}'>
+  <div class="bulkbar">
+    <strong data-count>0 selected</strong>
+    <a href="#" class="small hidden" data-select-all-matching>Select all {{ pager.total }} matching</a>
+    <button type="button" class="btn btn--sm" data-action="extend" data-ask="Extend by how many days?" data-ask-default="30" data-ask-key="days">Extend</button>
+    <button type="button" class="btn btn--sm" data-action="warn" data-ask="Message to show on their screen (they can dismiss it):" data-ask-key="message">Show a warning</button>
+    <button type="button" class="btn btn--sm" data-action="block" data-ask="Message to show on their screen:" data-ask-default="{{ settings.msg_blocked }}" data-ask-key="message" data-confirm="Block {n} subscriber(s)? Their playback stops within the polling interval.">Block</button>
+    <button type="button" class="btn btn--sm btn--aqua" data-action="unblock">Set active</button>
+    <button type="button" class="btn btn--sm btn--danger" data-action="delete" data-confirm="Delete {n} subscriber(s)? Their playlist links stop working immediately.">Delete</button>
+    <a href="#" class="small hidden" data-clear>Clear</a>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr>
+      <th class="check-col"><input type="checkbox" data-check-all></th>
+      <th>Subscriber</th><th>State</th><th>Expires</th><th>Devices</th><th>Package</th><th>Last seen</th><th>Playlist link</th><th class="right">Actions</th>
+    </tr></thead>
+    <tbody>
+    {% for row, st in rows %}
+    <tr>
+      <td><input type="checkbox" class="row-check" value="{{ row.id }}"></td>
+      <td><a href="{{ url_for('subscriber_page', subscriber_id=row.id) }}"><strong>{{ row.name }}</strong></a>{% if row.contact %}<div class="small dim">{{ row.contact }}</div>{% endif %}{% if row.note %}<div class="small muted truncate" title="{{ row.note }}">{{ row.note }}</div>{% endif %}</td>
+      <td>{{ state_pill(st) }}<div class="small dim">{{ st.reason }}</div></td>
+      <td class="small">{% if row.expires_at %}{{ when(row.expires_at, 'date') }}{% else %}<span class="dim">never</span>{% endif %}</td>
+      <td class="small">{{ row.device_count }} / {{ row.max_devices }}</td>
+      <td class="small">{{ row.package_name or 'All' }}</td>
+      <td class="small">{{ when(row.last_seen_at, 'ago') }}</td>
+      <td><button type="button" class="btn btn--sm" data-copy-text="{{ base_url() }}/p/{{ row.token }}.m3u">Copy link</button></td>
+      <td><div class="actions">
+        <form method="post" action="{{ url_for('subscriber_extend', subscriber_id=row.id) }}" class="inline">{{ csrf() }}<input type="hidden" name="days" value="30"><button class="btn btn--sm" type="submit" title="Extend by 30 days">+30 d</button></form>
+        <a class="btn btn--sm btn--aqua" href="{{ url_for('subscriber_page', subscriber_id=row.id) }}">Open</a>
+      </div></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="center muted" style="padding:30px">{% if pager.total == 0 and not search and not state %}No subscribers yet. Add the first one above.{% else %}Nobody matches this filter.{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {{ paginate(pager) }}
+</div>
+{% endblock %}

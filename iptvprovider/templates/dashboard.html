@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "_macros.html" import when, state_pill with context %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Dashboard</h1><p>What your subscribers are seeing right now.</p></div>
+  <div class="row">
+    <a class="btn" href="{{ url_for('sources_page') }}">Add a source</a>
+    <a class="btn btn--primary" href="{{ url_for('subscribers_page') }}#add">Add a subscriber</a>
+  </div>
+</div>
+
+{% if not base_set %}
+<div class="callout callout--warn" style="margin-bottom:14px"><span class="callout__dot"></span><span><strong>Set the public address first.</strong> Playlist links and the authorisation endpoint are built from it. <a href="{{ url_for('settings_page') }}">Open Settings</a>.</span></div>
+{% elif not https_ok %}
+<div class="callout callout--warn" style="margin-bottom:14px"><span class="callout__dot"></span><span><strong>The public address is not https.</strong> The IPTV Room app ignores an authorisation line that points at a plain http endpoint, so device limits and expiry will not be enforced until this panel is behind https. See the README for a two-line Caddy setup.</span></div>
+{% endif %}
+
+<div class="grid grid--4" style="margin-bottom:14px">
+  <a class="stat stat--aqua" href="{{ url_for('subscribers_page', state='active') }}"><div class="stat__value">{{ subs.active }}</div><div class="stat__label">Active subscribers</div></a>
+  <a class="stat stat--amber" href="{{ url_for('subscribers_page', state='expiring') }}"><div class="stat__value">{{ subs.expiring }}</div><div class="stat__label">Expiring within {{ settings.warn_days }} days</div></a>
+  <a class="stat stat--red" href="{{ url_for('subscribers_page', state='expired') }}"><div class="stat__value">{{ subs.expired }}</div><div class="stat__label">Expired</div></a>
+  <a class="stat" href="{{ url_for('subscribers_page', state='blocked') }}"><div class="stat__value">{{ subs.blocked }}</div><div class="stat__label">Blocked</div></a>
+</div>
+<div class="grid grid--4" style="margin-bottom:18px">
+  <a class="stat" href="{{ url_for('channels_page') }}"><div class="stat__value">{{ lib.channels }}</div><div class="stat__label">Channels in {{ lib.groups }} groups</div></a>
+  <a class="stat" href="{{ url_for('sources_page') }}"><div class="stat__value">{{ lib.sources }}</div><div class="stat__label">Sources{% if lib.errors %} · <span style="color:var(--red)">{{ lib.errors }} failing</span>{% endif %}</div></a>
+  <div class="stat"><div class="stat__value">{{ subs.devices }}</div><div class="stat__label">Devices signed in</div></div>
+  <div class="stat stat--aqua"><div class="stat__value">{{ subs.watching }}</div><div class="stat__label">Sessions in the last 15 min</div></div>
+</div>
+
+<div class="grid grid--2">
+  <div class="card">
+    <div class="card__head"><h2>Sources</h2><a class="small" href="{{ url_for('sources_page') }}">Manage</a></div>
+    {% if sources %}
+    <div class="tablewrap"><table>
+      <thead><tr><th>Name</th><th>Channels</th><th>Refresh</th><th>Last fetch</th></tr></thead>
+      <tbody>
+      {% for s in sources %}
+      <tr>
+        <td><a href="{{ url_for('channels_page', source=s.id) }}">{{ s.name }}</a>{% if not s.enabled %} <span class="pill pill--dim">off</span>{% endif %}</td>
+        <td>{{ s.channel_count - s.hidden_count }}{% if s.hidden_count %} <span class="dim small">(+{{ s.hidden_count }} hidden)</span>{% endif %}</td>
+        <td class="small">{% if s.kind == 'url' %}{{ 'every %g h' % s.auto_refresh_hours if s.auto_refresh_hours else 'manual' }}{% else %}{{ s.kind }}{% endif %}</td>
+        <td class="small">{% if s.last_error %}<span class="pill pill--bad" title="{{ s.last_error }}">failed</span>{% else %}{{ when(s.last_success_at, 'ago') }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="muted">No sources yet. <a href="{{ url_for('sources_page') }}">Add a playlist URL or upload an M3U file.</a></p>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card__head"><h2>Expiring soonest</h2><a class="small" href="{{ url_for('subscribers_page', state='expiring') }}">See all</a></div>
+    {% if expiring %}
+    <div class="tablewrap"><table>
+      <thead><tr><th>Subscriber</th><th>State</th><th>Ends</th></tr></thead>
+      <tbody>
+      {% for row, st in expiring %}
+      <tr><td><a href="{{ url_for('subscriber_page', subscriber_id=row.id) }}">{{ row.name }}</a></td><td>{{ state_pill(st) }}</td><td class="small">{{ when(row.expires_at, 'date') }} <span class="dim">({{ st.days_left }} d)</span></td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="muted">Nothing is due to expire.</p>{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <div class="card__head"><h2>Recent checks from the app</h2><a class="small" href="{{ url_for('activity_page') }}">Full log</a></div>
+  {% if recent %}
+  <div class="tablewrap"><table>
+    <thead><tr><th>When</th><th>Subscriber</th><th>Device</th><th>Reason</th><th>Answer</th><th>Detail</th></tr></thead>
+    <tbody>
+    {% for a in recent %}
+    <tr>
+      <td class="small nowrap">{{ when(a.at, 'ago') }}</td>
+      <td>{% if a.subscriber_id %}<a href="{{ url_for('subscriber_page', subscriber_id=a.subscriber_id) }}">{{ a.subscriber_name or '(deleted)' }}</a>{% else %}<span class="dim">unknown token</span>{% endif %}</td>
+      <td class="mono small">{{ a.device_id or '–' }}</td>
+      <td class="small">{{ a.reason }}</td>
+      <td><span class="pill pill--{{ 'ok' if a.state == 'ok' else 'warn' if a.state == 'warn' else 'bad' }}">{{ a.state }}</span></td>
+      <td class="small muted">{{ a.detail }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">No device has asked yet. Once a subscriber opens their playlist in IPTV Room, every check lands here.</p>{% endif %}
+</div>
+{% endblock %}

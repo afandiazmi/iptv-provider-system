@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf with context %}
+{% block title %}Packages{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Packages</h1><p>A package is a set of sources (and optionally groups) a subscriber may see. Subscribers without a package see every enabled source. Use packages to sell tiers from the same library.</p></div>
+  <button type="button" class="btn btn--primary" data-open="package-add">New package</button>
+</div>
+
+{% if packages %}
+<div class="grid grid--2">
+  {% for p, source_ids, groups, count in packages %}
+  <div class="card">
+    <div class="card__head"><h2>{{ p.name }}</h2><span class="pill pill--violet">{{ count }} subscriber(s)</span></div>
+    {% if p.description %}<p class="muted small">{{ p.description }}</p>{% endif %}
+    <dl class="kv">
+      <dt>Sources</dt><dd>{% for s in sources if s.id in source_ids %}<span class="pill">{{ s.name }}</span> {% else %}<span class="pill pill--bad">none - subscribers on this package see nothing</span>{% endfor %}</dd>
+      <dt>Groups</dt><dd>{% if groups %}{% for g in groups %}<span class="pill">{{ g }}</span> {% endfor %}{% else %}<span class="dim">every group of those sources</span>{% endif %}</dd>
+    </dl>
+    <div class="row row--end" style="margin-top:12px">
+      <button type="button" class="btn btn--sm" data-open="package-{{ p.id }}">Edit</button>
+      <form method="post" action="{{ url_for('packages_delete', package_id=p.id) }}" class="inline" data-confirm="Delete this package? Subscribers on it will see every source instead.">{{ csrf() }}<button class="btn btn--sm btn--danger" type="submit">Delete</button></form>
+    </div>
+  </div>
+  <div class="modal" id="package-{{ p.id }}">
+    <div class="modal__panel">
+      <div class="modal__head"><h2>{{ p.name }}</h2><button type="button" class="btn btn--sm" data-close>Close</button></div>
+      <form method="post" action="{{ url_for('packages_update', package_id=p.id) }}" class="stack">
+        {{ csrf() }}
+        <label class="field">Name<input type="text" name="name" value="{{ p.name }}" required></label>
+        <label class="field">Description <em>optional</em><input type="text" name="description" value="{{ p.description }}"></label>
+        <div class="field"><span>Sources included</span>
+          {% for s in sources %}<label class="row small" style="font-weight:400;color:var(--text)"><input type="checkbox" name="source_ids" value="{{ s.id }}" {{ 'checked' if s.id in source_ids }}> {{ s.name }} <span class="dim">({{ s.channel_count - s.hidden_count }})</span></label>{% endfor %}
+        </div>
+        <label class="field">Only these groups <em>optional, comma separated; blank = all</em><input type="text" name="groups" value="{{ groups|join(', ') }}" list="all-groups"></label>
+        <div class="row"><button class="btn btn--primary" type="submit">Save</button></div>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><p class="muted">No packages yet. Every subscriber currently sees every enabled source, which is fine for a single-tier service.</p></div>
+{% endif %}
+
+<div class="modal" id="package-add">
+  <div class="modal__panel">
+    <div class="modal__head"><h2>New package</h2><button type="button" class="btn btn--sm" data-close>Close</button></div>
+    <form method="post" action="{{ url_for('packages_add') }}" class="stack">
+      {{ csrf() }}
+      <label class="field">Name<input type="text" name="name" required placeholder="Basic, Sports, Full…"></label>
+      <label class="field">Description <em>optional</em><input type="text" name="description"></label>
+      <div class="field"><span>Sources included</span>
+        {% for s in sources %}<label class="row small" style="font-weight:400;color:var(--text)"><input type="checkbox" name="source_ids" value="{{ s.id }}" checked> {{ s.name }} <span class="dim">({{ s.channel_count - s.hidden_count }})</span></label>{% endfor %}
+      </div>
+      <label class="field">Only these groups <em>optional, comma separated; blank = all</em><input type="text" name="groups" list="all-groups" placeholder="Sport, Movies"></label>
+      <div class="row"><button class="btn btn--primary" type="submit">Create</button></div>
+    </form>
+  </div>
+</div>
+<datalist id="all-groups">{% for g in all_groups %}<option value="{{ g }}">{% endfor %}</datalist>
+{% endblock %}

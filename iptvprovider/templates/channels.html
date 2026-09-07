@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, paginate with context %}
+{% block title %}{{ source.name if source else 'All channels' }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{% if source %}{{ source.name }}{% else %}All channels{% endif %} <span class="badge-count">{{ pager.total }}</span></h1>
+    <p>{% if source %}Channels of one source. {% if source.kind != 'manual' %}Edits and deletions here survive every refresh of the source.{% else %}Channels you typed in yourself; they are never refreshed.{% endif %}{% else %}Every channel from every source in one list. Filter by source or group, search, then edit or delete in bulk.{% endif %}</p>
+  </div>
+  <div class="row">
+    {% if source and source.kind == 'url' %}<form method="post" action="{{ url_for('sources_refresh', source_id=source.id) }}" class="inline">{{ csrf() }}<button class="btn btn--aqua" type="submit">Refresh from URL</button></form>{% endif %}
+    <button type="button" class="btn btn--primary" data-open="channel-add">Add a channel</button>
+  </div>
+</div>
+
+<form method="get" class="filters">
+  <label class="field">Source
+    <select name="source" onchange="this.form.group.value=''; this.form.submit()">
+      <option value="">All sources</option>
+      {% for s in sources %}<option value="{{ s.id }}" {{ 'selected' if source and source.id == s.id }}>{{ s.name }} ({{ s.channel_count - s.hidden_count }})</option>{% endfor %}
+    </select>
+  </label>
+  <label class="field">Group
+    <select name="group" onchange="this.form.submit()">
+      <option value="">All groups ({{ groups|length }})</option>
+      {% for g in groups %}<option value="{{ g.group_name }}" {{ 'selected' if group == g.group_name }}>{{ g.group_name or '(no group)' }} ({{ g.n - (g.hidden or 0) }})</option>{% endfor %}
+    </select>
+  </label>
+  <label class="field">Show
+    <select name="show" onchange="this.form.submit()">
+      <option value="visible" {{ 'selected' if show == 'visible' }}>Visible</option>
+      <option value="hidden" {{ 'selected' if show == 'hidden' }}>Deleted (hidden)</option>
+      <option value="all" {{ 'selected' if show == 'all' }}>Everything</option>
+    </select>
+  </label>
+  <label class="field grow">Search <input type="search" name="q" value="{{ search }}" placeholder="Name, URL, tvg-id or group"></label>
+  <input type="hidden" name="per" value="{{ pager.per_page }}">
+  <button class="btn" type="submit">Filter</button>
+  {% if search or group or show != 'visible' %}<a class="btn btn--ghost" href="{{ url_for('channels_page', source=source.id if source else None) }}">Clear</a>{% endif %}
+</form>
+
+<div data-bulk="{{ url_for('channels_bulk') }}" data-total="{{ pager.total }}" data-filter='{{ {"source": source.id if source else "", "group": group, "q": search}|tojson }}'>
+  <div class="bulkbar">
+    <strong data-count>0 selected</strong>
+    <a href="#" class="small hidden" data-select-all-matching>Select all {{ pager.total }} matching</a>
+    {% if show != 'hidden' %}<button type="button" class="btn btn--sm btn--danger" data-action="delete" data-confirm="Delete {n} channel(s)? They are hidden from every playlist and stay hidden after refreshes. You can restore them from Show: Deleted.">Delete selected</button>{% endif %}
+    {% if show != 'visible' %}<button type="button" class="btn btn--sm btn--aqua" data-action="restore">Restore selected</button>{% endif %}
+    <a href="#" class="small hidden" data-clear>Clear</a>
+  </div>
+
+  <div class="tablewrap"><table>
+    <thead><tr>
+      <th class="check-col"><input type="checkbox" data-check-all aria-label="Select all on this page"></th>
+      <th>#</th><th></th><th>Channel</th><th>Group</th><th>tvg-id</th><th>Stream</th>{% if not source %}<th>Source</th>{% endif %}<th class="right">Actions</th>
+    </tr></thead>
+    <tbody>
+    {% for c in rows %}
+    <tr class="{{ 'is-hidden' if c.hidden }}">
+      <td><input type="checkbox" class="row-check" value="{{ c.id }}"></td>
+      <td class="dim small">{{ pager.offset + loop.index }}</td>
+      <td>{% if c.tvg_logo %}<img class="logo" src="{{ c.tvg_logo }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</td>
+      <td><strong>{{ c.name }}</strong>{% if c.hidden %} <span class="pill pill--bad">deleted</span>{% endif %}{% if c.edited and c.source_kind != 'manual' %} <span class="pill pill--violet" title="Edited by you; kept across refreshes">edited</span>{% endif %}</td>
+      <td class="small">{{ c.group_name or '—' }}</td>
+      <td class="mono small">{{ c.tvg_id or '—' }}</td>
+      <td><span class="truncate mono small" title="{{ c.url }}">{{ c.url }}</span></td>
+      {% if not source %}<td class="small"><a href="{{ url_for('channels_page', source=c.source_id) }}">{{ c.source_name }}</a></td>{% endif %}
+      <td><div class="actions">
+        <button type="button" class="btn btn--sm" data-edit-channel="{{ c.id }}">Edit</button>
+        {% if c.hidden %}
+        <button type="button" class="btn btn--sm btn--aqua" data-post="{{ url_for('channels_bulk') }}" data-body='{"action":"restore","ids":[{{ c.id }}]}'>Restore</button>
+        {% else %}
+        <button type="button" class="btn btn--sm btn--danger" data-post="{{ url_for('channels_bulk') }}" data-body='{"action":"delete","ids":[{{ c.id }}]}'>Delete</button>
+        {% endif %}
+      </div></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="center muted" style="padding:30px">{% if pager.total == 0 and not search and not group %}Nothing here yet.{% if not source %} <a href="{{ url_for('sources_page') }}">Add a source</a> or add a channel by hand.{% endif %}{% else %}No channel matches this filter.{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {{ paginate(pager) }}
+</div>
+
+<div class="modal" id="channel-edit">
+  <div class="modal__panel">
+    <div class="modal__head"><div><h2 data-title>Edit channel</h2><div class="small muted" data-source></div></div><button type="button" class="btn btn--sm" data-close>Close</button></div>
+    <form class="stack" method="post" action="#">
+      <div class="form-grid">
+        <label class="field span-2">Name<input type="text" name="name" required></label>
+        <label class="field">Group <em>group-title</em><input type="text" name="group_name" list="group-names"></label>
+        <label class="field">tvg-id<input type="text" name="tvg_id"></label>
+        <label class="field span-all">Stream URL<input type="text" name="url" required></label>
+        <label class="field span-2">Logo URL <em>tvg-logo</em><input type="text" name="tvg_logo"></label>
+        <label class="field">Duration <em>-1 for live</em><input type="text" name="duration"></label>
+        <label class="field span-all">Directives <em>one per line: #EXTVLCOPT, #KODIPROP, #EXTHTTP…</em><textarea name="extras" rows="3"></textarea></label>
+      </div>
+      <div class="small dim">Other attributes kept as they are: <span class="mono" data-attrs></span></div>
+      <div class="row"><button class="btn btn--primary" type="submit">Save</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="channel-add">
+  <div class="modal__panel">
+    <div class="modal__head"><div><h2>Add a channel</h2><div class="small muted">Goes into the Manual source, which is never refreshed.</div></div><button type="button" class="btn btn--sm" data-close>Close</button></div>
+    <form class="stack" method="post" action="{{ url_for('channel_add') }}">
+      {{ csrf() }}
+      <div class="form-grid">
+        <label class="field span-2">Name<input type="text" name="name" required></label>
+        <label class="field">Group<input type="text" name="group_name" list="group-names"></label>
+        <label class="field">tvg-id<input type="text" name="tvg_id"></label>
+        <label class="field span-all">Stream URL<input type="text" name="url" required placeholder="https://…/index.m3u8"></label>
+        <label class="field span-2">Logo URL<input type="text" name="tvg_logo"></label>
+        <label class="field">Duration<input type="text" name="duration" value="-1"></label>
+        <label class="field span-all">Directives <em>optional, one per line</em><textarea name="extras" rows="2" placeholder="#EXTVLCOPT:http-user-agent=…"></textarea></label>
+      </div>
+      <div class="row"><button class="btn btn--primary" type="submit">Add channel</button></div>
+    </form>
+  </div>
+</div>
+<datalist id="group-names">{% for g in groups %}<option value="{{ g.group_name }}">{% endfor %}</datalist>
+{% endblock %}

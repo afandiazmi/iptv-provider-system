@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Your subscription - {{ settings.provider_name }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+<main class="public">
+  <p class="eyebrow">{{ settings.provider_name }}</p>
+  <h1>Your subscription</h1>
+  <p class="muted">{{ subscriber.name }}</p>
+
+  {% if message %}<div class="callout" style="margin:14px 0"><span class="callout__dot"></span><span>{{ message }}</span></div>{% endif %}
+
+  <div class="card" style="margin-top:14px">
+    <div class="row row--between">
+      <h2>Status</h2>
+      <span class="pill pill--{{ state.tone }}">{{ state.label }}</span>
+    </div>
+    <p style="margin-top:8px">{{ state.reason }}.{% if state.message %} {{ state.message }}{% endif %}</p>
+    {% if renew_url and state.state != 'ok' %}<a class="btn btn--primary" href="{{ renew_url }}">Renew</a>{% elif renew_url %}<a class="btn" href="{{ renew_url }}">Renew early</a>{% endif %}
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="row row--between"><h2>Devices</h2><span class="dim small">{{ devices|length }} of {{ subscriber.max_devices }}</span></div>
+    <p class="small muted">The first {{ subscriber.max_devices }} devices to open your playlist keep their places.{% if can_remove %} Remove one you no longer use to let a new one in.{% endif %}</p>
+    {% if devices %}
+    <div class="tablewrap"><table>
+      <thead><tr><th>#</th><th>Device</th><th>Last seen</th>{% if can_remove %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+      {% for d in devices %}
+      <tr>
+        <td>{{ d.slot }}</td>
+        <td>{{ d.os or 'Device' }}<div class="mono small dim">{{ d.device_id[:8] }}…</div></td>
+        <td class="small"><time data-utc="{{ d.last_seen_at }}" data-mode="ago">{{ d.last_seen_at[:10] }}</time></td>
+        {% if can_remove %}<td class="right"><form method="post" data-confirm="Remove this device?"><input type="hidden" name="device_id" value="{{ d.device_id }}"><button class="btn btn--sm btn--danger" type="submit">Remove</button></form></td>{% endif %}
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="muted small">No device has opened the playlist yet.</p>{% endif %}
+  </div>
+  <p class="dim small" style="margin-top:18px">Keep this page private - anyone with the link can see it.</p>
+</main>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

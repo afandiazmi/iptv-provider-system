@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, when with context %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Settings</h1><p>Everything here takes effect immediately - the next time a device checks in, or the next time a playlist is fetched.</p></div></div>
+
+<form method="post" action="{{ url_for('settings_page') }}" class="grid grid--2">
+  {{ csrf() }}
+  <div class="stack">
+    <div class="card">
+      <h2>This panel</h2>
+      <div class="stack">
+        <label class="field">Provider name <em>shown to subscribers and used as the playlist name</em><input type="text" name="provider_name" value="{{ settings.provider_name }}"></label>
+        <label class="field">Public address <em>where subscribers and the app reach this panel</em>
+          <input type="text" name="public_base_url" value="{{ settings.public_base_url }}" placeholder="{{ guessed_base }}">
+          <span class="hint">Must be <strong>https</strong>: the IPTV Room app refuses an authorisation endpoint on plain http. Playlist links look like <code>{{ settings.public_base_url or guessed_base }}/p/&lt;token&gt;.m3u</code>.</span>
+        </label>
+        <label class="field">Playlist name <em>optional, defaults to the provider name</em><input type="text" name="playlist_name" value="{{ settings.playlist_name }}"></label>
+        <label class="field">Programme guide URLs <em>url-tvg; one per line or comma separated; guides from sources are added automatically</em><textarea name="epg_urls" rows="2">{{ settings.epg_urls }}</textarea></label>
+        <label class="field">Default User-Agent for fetching sources <em>optional</em><input type="text" name="default_user_agent" value="{{ settings.default_user_agent }}"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Authorisation line</h2>
+      <p class="small muted">Written into every playlist as <code>#UNLOOP-AUTH:1 url="…/unloop" token="…" poll="…" grace="…" on-error="…"</code>. See <a href="https://iptvroom.nax.my/docs#authorisation" target="_blank" rel="noopener">the IPTV Room documentation</a>.</p>
+      <div class="form-grid">
+        <label class="field">Poll <em>seconds between checks while playing</em><input type="number" name="auth_poll" min="30" max="21600" value="{{ settings.auth_poll }}"></label>
+        <label class="field">Grace <em>seconds the last answer stands if this panel is down</em><input type="number" name="auth_grace" min="0" max="604800" value="{{ settings.auth_grace }}"></label>
+        <label class="field">When this panel is unreachable past the grace
+          <select name="auth_on_error"><option value="allow" {{ 'selected' if settings.auth_on_error == 'allow' }}>Keep playing (recommended)</option><option value="deny" {{ 'selected' if settings.auth_on_error == 'deny' }}>Stop playback</option></select>
+        </label>
+        <label class="field">Warn before expiry <em>days; 0 = never</em><input type="number" name="warn_days" min="0" max="365" value="{{ settings.warn_days }}"></label>
+        <label class="field">Blocked or expired subscribers get
+          <select name="playlist_when_refused"><option value="empty" {{ 'selected' if settings.playlist_when_refused == 'empty' }}>An empty playlist (recommended)</option><option value="full" {{ 'selected' if settings.playlist_when_refused == 'full' }}>The full playlist - the app shows your message; other players play</option></select>
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>New subscribers</h2>
+      <div class="form-grid">
+        <label class="field">Default duration <em>days</em><input type="number" name="default_days" min="1" max="36500" value="{{ settings.default_days }}"></label>
+        <label class="field">Default devices allowed<input type="number" name="default_max_devices" min="1" max="100" value="{{ settings.default_max_devices }}"></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h2>Messages on the television</h2>
+      <p class="small muted">Plain text. <code>{days}</code>, <code>{date}</code>, <code>{name}</code> and <code>{limit}</code> are filled in.</p>
+      <div class="stack">
+        <label class="field">Expiring soon<input type="text" name="msg_expiring" value="{{ settings.msg_expiring }}"></label>
+        <label class="field">Expired<input type="text" name="msg_expired" value="{{ settings.msg_expired }}"></label>
+        <label class="field">Blocked <em>default; each subscriber can have their own</em><input type="text" name="msg_blocked" value="{{ settings.msg_blocked }}"></label>
+        <label class="field">Device limit reached<input type="text" name="msg_device_limit" value="{{ settings.msg_device_limit }}"></label>
+        <label class="field">Unknown or deleted playlist<input type="text" name="msg_not_found" value="{{ settings.msg_not_found }}"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>QR codes on refusal screens</h2>
+      <p class="small muted">The app draws <code>action_url</code> as a QR code so the viewer can fix things from their phone. Must be https. Blank uses this panel's own self-service page for the subscriber.</p>
+      <div class="stack">
+        <label class="field">Renew URL <em>for expiring and expired</em><input type="text" name="renew_url" value="{{ settings.renew_url }}" placeholder="https://wa.me/60123456789?text=Renew"></label>
+        <label class="field">Support URL <em>for blocked and unknown</em><input type="text" name="support_url" value="{{ settings.support_url }}" placeholder="https://t.me/yoursupport"></label>
+        <div class="form-grid">
+          <label class="field">Caption under the renew code<input type="text" name="action_label_renew" maxlength="40" value="{{ settings.action_label_renew }}"></label>
+          <label class="field">Caption under the devices code<input type="text" name="action_label_devices" maxlength="40" value="{{ settings.action_label_devices }}"></label>
+        </div>
+        <label class="row" style="font-weight:400"><input type="checkbox" name="self_service_enabled" value="1" {{ 'checked' if settings.self_service_enabled }}> Self-service page enabled (<code>/me/&lt;token&gt;</code>)</label>
+        <label class="row" style="font-weight:400"><input type="checkbox" name="self_service_devices" value="1" {{ 'checked' if settings.self_service_devices }}> Subscribers may remove their own devices there</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Advanced: stream headers</h2>
+      <p class="small muted">Headers the app adds to every stream request of this playlist, as JSON. Use this if your CDN checks a token - then a subscriber who strips the authorisation line loses playback rather than just the check. Leave blank otherwise.</p>
+      <div class="form-grid">
+        <label class="field span-2">Headers <em>JSON object, at most 8</em><input type="text" name="stream_headers" value="{{ settings.stream_headers }}" placeholder='{"X-Play-Token": "abc123"}'></label>
+        <label class="field">Valid for <em>seconds</em><input type="number" name="stream_headers_ttl" min="10" max="86400" value="{{ settings.stream_headers_ttl }}"></label>
+      </div>
+    </div>
+
+    <div class="row row--end"><button class="btn btn--primary" type="submit">Save settings</button></div>
+  </div>
+</form>
+
+<div class="grid grid--2" style="margin-top:16px">
+  <div class="card">
+    <h2>Your password</h2>
+    <form method="post" action="{{ url_for('settings_password') }}" class="stack">
+      {{ csrf() }}
+      <label class="field">Current password<input type="password" name="current" required autocomplete="current-password"></label>
+      <div class="form-grid">
+        <label class="field">New password<input type="password" name="new" required minlength="8" autocomplete="new-password"></label>
+        <label class="field">New password again<input type="password" name="confirm" required minlength="8" autocomplete="new-password"></label>
+      </div>
+      <div class="row row--end"><button class="btn" type="submit">Change password</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Admins</h2>
+    <div class="tablewrap" style="margin-bottom:12px"><table>
+      <thead><tr><th>Username</th><th>Last sign-in</th><th></th></tr></thead>
+      <tbody>{% for a in admins %}<tr><td>{{ a.username }}</td><td class="small">{{ when(a.last_login_at, 'ago') }}</td><td class="right">{% if a.id != admin.id %}<form method="post" action="{{ url_for('settings_admin_delete', admin_id=a.id) }}" class="inline" data-confirm="Remove this admin?">{{ csrf() }}<button class="btn btn--sm btn--danger" type="submit">Remove</button></form>{% else %}<span class="dim small">you</span>{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <form method="post" action="{{ url_for('settings_admin_add') }}" class="form-grid">
+      {{ csrf() }}
+      <label class="field">Username<input type="text" name="username" required minlength="3"></label>
+      <label class="field">Password<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+      <div class="field"><span>&nbsp;</span><button class="btn" type="submit">Add admin</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}
