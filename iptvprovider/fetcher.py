@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from . import config
 from . import __version__
 
-DEFAULT_USER_AGENT = f"IPTVProviderSystem/{__version__} (+https://github.com/)"
+DEFAULT_USER_AGENT = f"IPTVProviderSystem/{__version__} (+https://github.com/afandiazmi/iptv-provider-system)"
 
 
 class FetchError(Exception):

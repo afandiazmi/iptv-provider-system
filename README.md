@@ -71,7 +71,7 @@ URLs behind the QR codes, defaults for new subscribers, and an advanced
 ## Run it
 
 ```bash
-git clone https://github.com/YOUR-NAME/iptv-provider-system.git
+git clone https://github.com/afandiazmi/iptv-provider-system.git
 cd iptv-provider-system
 pip install -r requirements.txt
 python app.py
